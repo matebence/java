@@ -1120,6 +1120,225 @@ public class App {
 }
 ```
 
+## Annotations
+
+```java
+
+public class App {
+
+    public static void main(String[] args) throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException, NoSuchFieldException {
+        // Getting constructor
+
+        // Class<?> myClass = MyClass.class;
+        // Class<?> myClass = Class.forName("com.bence.mate.MyClass");
+        MyClass myClassObject = new MyClass();
+        Class<?> myClass = myClassObject.getClass();
+
+        Arrays.stream(myClass.getDeclaredConstructors()).forEach(System.out::println);
+        Arrays.stream(myClass.getConstructors()).forEach(System.out::println);
+        System.out.println(myClass.getSuperclass());
+        System.out.println(myClass.getInterfaces());
+
+        Constructor<?> myClassConstructor = myClass.getDeclaredConstructor(Integer.class);
+        myClassConstructor.setAccessible(true);
+
+        MyClass instance = (MyClass) myClassConstructor.newInstance(15);
+        System.out.println(instance.getValue());
+
+
+
+        // Getting fields
+
+        //all public elements in that class and its super class
+        Arrays.stream(myClass.getFields()).forEach(System.out::println);
+        //all the elements present in that class only
+        Arrays.stream(myClass.getDeclaredFields()).forEach(System.out::println);
+
+        Field field = myClass.getField("name");
+        field.set(myClassObject, "ecneb");
+        System.out.println(myClassObject.getName());
+
+
+
+        // Getting methods
+
+        //all public methods in that class and its super class
+        Arrays.stream(myClass.getMethods()).forEach(System.out::println);
+        //all the elements present in that class only
+        Arrays.stream(myClass.getDeclaredMethods()).forEach(System.out::println);
+
+        Method method = myClass.getMethod("doWork");
+        method.invoke(myClassObject);
+
+
+
+        // Understanding modifiers
+
+        //if 0 is not public
+        //if 1 is public
+        int i = method.getModifiers() & Modifier.PUBLIC;
+        System.out.println(i);
+        System.out.println(Modifier.isPublic(method.getModifiers()));
+
+
+
+        // Checking for annotations
+        Arrays.stream(myClass.getAnnotations()).filter(e -> e.annotationType().equals(MostUsed.class))
+                .forEach(System.out::println);
+        Arrays.stream(myClass.getDeclaredMethods()).filter(e -> e.isAnnotationPresent(MostUsed.class))
+                .forEach(System.out::println);
+
+        Class<?> clss = Class.forName("com.bence.mate.MyClass");
+        Constructor<?> constructor = clss.getConstructor();
+        MyClass u = (MyClass) constructor.newInstance();
+
+        Method[] methods = clss.getMethods();
+        for (Method item : methods) {
+            if (item.isAnnotationPresent(MostUsed.class)) {
+                item.invoke(u); //calling the method
+            }
+        }
+    }
+}
+```
+
+    [access specifier] @interface <AnnotationName> {
+                <DataType> <memberName>() [default value];
+    }
+
+Type of annotations:
+- Marker annotations -@Override
+- Single-values Annotations - @SuppressWarnings("raw")
+- Multi values annotations - annotations with more then one value
+
+In java we have:
+- General purpose Annotations
+    - @Override
+    - @Supresswarnings
+    - @Depricated
+- Meta annotations
+    - Annotations for create new custom annotations
+- Custom Annotations
+
+Creating custom annotation:
+- @Inherited - the child will inherit the annotation 
+- @Target - where should be used field method constructor etc ...
+- @Documented - is used including the annotation to the javadocs
+- @Retentation - life span for annotation 
+    - RetentionPolicy.SOURCE: Discard during the compile. These annotations don't make any sense after the compile has completed, so they aren't written to the bytecode.
+    - Example: @Override, @SuppressWarnings
+    - RetentionPolicy.CLASS: Discard during class load. Useful when doing bytecode-level post-processing. Somewhat surprisingly, this is the default.
+    - RetentionPolicy.RUNTIME: Do not discard. The annotation should be available for reflection at runtime. Example: @Deprecated
+
+```java
+@Documented
+@Inherited
+@Target({ElementType.TYPE, ElementType.Method})
+@Retentation({RetentationPolicy.RUNTIME})
+public @interface MostUsed {
+    String value() default "java"
+}
+
+@MostUsed
+public class Utility {
+
+    void doStuff() {
+        System.out.println("Doing something")
+    }
+
+
+    @MostUsed(name = "maven")
+    void doStuff(String arg) {
+        System.out.println("Doing something" + arg)
+    }
+
+    void doStuff(int i) {
+        System.out.println("Doing something" + i)
+    }
+}
+```
+
+```java
+@Repetable(value = Designations.class)
+@Retention(RUNTIME)
+@Target(ElementType.Type)
+public @interface Designation {
+
+    String value() default "Employee";
+}
+
+@Retentation(RUNTIME)
+@Target(ElementType.TYPE)
+public @interface Designations {
+
+    public Designation[] value();
+}
+
+@Designation("Manager")
+@Designation("Consultant")
+public class Employee {
+}
+```
+
+### Reflection alternative for better performance
+
+Method handles API is a upgrade to reflections API. Which is faster. The reason why reflection is slow is the authentication, it checks if its oke to use reflection
+on every call.
+
+```java
+public class App {
+
+    public static void main(String[] args) throws Throwable {
+        //Initialize lookup
+        MethodHandles.Lookup lookup = MethodHandles.lookup();
+
+        //Getting student class
+        Class<?> studentClass = lookup.findClass(Student.class.getName());
+        MethodType stringType = MethodType.methodType(String.class);
+
+        //Getting info
+        Student s = new Student();
+        s.setCourse("Java");
+
+        MethodHandle getCourseHandle = lookup.findVirtual(Student.class, "getCourse", stringType);
+        System.out.println(getCourseHandle.invoke(s));
+
+        //No argument constructor
+        MethodType noArgumentType = MethodType.methodType(void.class);
+        MethodHandle noArgsHandleConstructor = lookup.findConstructor(studentClass, noArgumentType);
+        Student noArgStudent = (Student) noArgsHandleConstructor.invoke();
+
+
+        //All argument constructor
+        MethodType allArgumentType = MethodType.methodType(void.class, String.class, String.class);
+        MethodHandle AllArgsHandleConstructor = lookup.findConstructor(studentClass, allArgumentType);
+        Student allArgStudent = (Student) AllArgsHandleConstructor.invoke("A", "B");
+
+        //Getter & Setter
+        MethodType setterType = MethodType.methodType(void.class, String.class);
+        MethodHandle setNameHandle = lookup.findVirtual(studentClass, "setName", setterType);
+        setNameHandle.invoke(s, "ecneb");
+
+
+        //Using static method
+        MethodType staticType = MethodType.methodType(void.class, int.class);
+        MethodHandle setNameOfStudentHandle = lookup.findStatic(studentClass, "setNameOfStudents", staticType);
+        setNameOfStudentHandle.invoke(2);
+
+        //Find public getter and setter
+        MethodHandle findGetter1 = lookup.findGetter(studentClass, "name", String.class);
+        MethodHandle findSetter1 = lookup.findSetter(studentClass, "name", String.class);
+        findSetter1.invoke(s, "Test");
+
+        //Find private getter and setter
+        MethodHandles.Lookup privateLookupIn = MethodHandles.privateLookupIn(studentClass, lookup);
+        MethodHandle findGetter2 = privateLookupIn.findGetter(studentClass, "name", String.class);
+        MethodHandle findSetter2 = privateLookupIn.findSetter(studentClass, "name", String.class);
+        findSetter2.invoke(s, "Test");
+    }
+}
+```
+
 ## Default vs Static methods
 
 - Default
